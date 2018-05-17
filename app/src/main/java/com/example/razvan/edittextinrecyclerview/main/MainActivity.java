@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
     // Setup
 
     private void setupRecyclerView() {
-        mRvAdapterRates = new RvAdapterRates(this);
+        mRvAdapterRates = new RvAdapterRates(this, mPresenter, mPresenter);
         mRvRates.setLayoutManager(new LinearLayoutManager(this));
         mRvRates.setAdapter(mRvAdapterRates);
     }
@@ -85,19 +85,49 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
 
     // MvpView
     @Override
-    public void showData(@NonNull List<Rate> rates, @NonNull PublishSubject<Rate> editRatePublisher) {
+    public void showData(@NonNull List<Rate> rates,
+                         @NonNull PublishSubject<Rate> editRatePublisher,
+                         @NonNull PublishSubject<Float> baseValueChangesPublisher,
+                         @NonNull PublishSubject<Void> ratesValuesChange) {
+        mRvAdapterRates.setEditRatePublisher(editRatePublisher);
+        mRvAdapterRates.setBaseValuePublisher(baseValueChangesPublisher);
+        mRvAdapterRates.setRatesValuesChange(ratesValuesChange);
         mRvAdapterRates.setDataSet(rates);
         mRvAdapterRates.notifyDataSetChanged();
     }
 
     @Override
-    public void updateListWithNewRatesValues(@NonNull List<Rate> rates) {
-        mRvAdapterRates.setDataSet(rates);
+    public void notifyRatesValuesChanged() {
         mRvAdapterRates.notifyDataSetChanged();
+    }
+
+    @Override
+    public void moveBaseCurrencyToTop(@NonNull String baseCurrencyName) {
+        int baseCurrencyPosition = getCurrencyPositionInList(baseCurrencyName, mRvAdapterRates.getDataSet());
+        if (baseCurrencyPosition > -1) {
+            Rate baseRate = mRvAdapterRates.getDataSet().remove(baseCurrencyPosition);
+            mRvAdapterRates.getDataSet().add(0, baseRate);
+            mRvAdapterRates.notifyItemMoved(baseCurrencyPosition, 0);
+        }
+    }
+
+    private int getCurrencyPositionInList(@NonNull String baseCurrencyName, @NonNull List<Rate> currencyRates) {
+        for (int i = 0; i < currencyRates.size(); i++) {
+            if (currencyRates.get(i).getName().equals(baseCurrencyName)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Override
     public Context getViewContext() {
         return this;
+    }
+
+    @Override
+    protected void onDestroy() {
+        mPresenter.detachView();
+        super.onDestroy();
     }
 }

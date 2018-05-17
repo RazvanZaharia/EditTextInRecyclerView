@@ -6,11 +6,11 @@ public class Rate implements Serializable {
     private static final long serialVersionUID = 5579226264904096727L;
 
     private String name;
-    private float rate;
+    private float value;
 
-    public Rate(String name, float rate) {
+    public Rate(String name, float value) {
         this.name = name;
-        this.rate = rate;
+        this.value = value;
     }
 
     public String getName() {
@@ -21,11 +21,11 @@ public class Rate implements Serializable {
         this.name = name;
     }
 
-    public float getRate() {
-        return rate;
+    public float getValue() {
+        return value;
     }
 
-    public void setRate(float rate) {
-        this.rate = rate;
+    public void setValue(float value) {
+        this.value = value;
     }
 }

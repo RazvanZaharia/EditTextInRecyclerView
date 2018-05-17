@@ -10,7 +10,12 @@ import java.util.List;
 import rx.subjects.PublishSubject;
 
 public interface MvpViewMain extends MvpView {
-    void showData(@NonNull List<Rate> rates, @NonNull PublishSubject<Rate> editRatePublisher);
+    void showData(@NonNull List<Rate> rates,
+                  @NonNull PublishSubject<Rate> editRatePublisher,
+                  @NonNull PublishSubject<Float> baseValueChangesPublisher,
+                  @NonNull PublishSubject<Void> ratesValuesChange);
 
-    void updateListWithNewRatesValues(@NonNull List<Rate> rates);
+    void notifyRatesValuesChanged();
+
+    void moveBaseCurrencyToTop(@NonNull String baseCurrencyName);
 }

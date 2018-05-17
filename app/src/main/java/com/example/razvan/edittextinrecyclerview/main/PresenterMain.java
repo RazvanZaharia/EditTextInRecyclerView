@@ -3,23 +3,29 @@ package com.example.razvan.edittextinrecyclerview.main;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import com.example.razvan.edittextinrecyclerview.adapter.RvAdapterRates;
 import com.example.razvan.edittextinrecyclerview.base.Presenter;
 import com.example.razvan.edittextinrecyclerview.model.Rate;
 import com.example.razvan.edittextinrecyclerview.retrofit.ExampleService;
+import com.example.razvan.edittextinrecyclerview.util.Utils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
 import rx.Observable;
+import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 import rx.subscriptions.CompositeSubscription;
 
-public class PresenterMain implements Presenter<MvpViewMain> {
+public class PresenterMain implements Presenter<MvpViewMain>,
+        RvAdapterRates.OnRateListener,
+        RvAdapterRates.OnBaseCurrencyChangesListener {
     private static final String TAG = "PresenterMain";
 
     private ExampleService mService;
@@ -28,6 +34,10 @@ public class PresenterMain implements Presenter<MvpViewMain> {
 
     private MvpViewMain viewMain;
     private PublishSubject<Rate> mEditRatePublisher = PublishSubject.create();
+    private PublishSubject<Float> mBaseValueChanges = PublishSubject.create();
+    private PublishSubject<Void> mOnRateValuesChange = PublishSubject.create();
+    private Rate mBaseRate;
+    private Subscription mUpdateRatesSubscription;
 
     @Inject
     public PresenterMain(ExampleService service) {
@@ -49,48 +59,74 @@ public class PresenterMain implements Presenter<MvpViewMain> {
     }
 
     public void init() {
-        mSubscriptions.add(mService.getCurrencyRates("EUR")
+        mBaseRate = new Rate("EUR", 1.0f);
+
+        mSubscriptions.add(mService.getCurrencyRates(mBaseRate.getName())
                 .compose(applySchedulers())
                 .subscribe(response -> {
-                    Log.d(TAG, "response: " + response.toString());
-                    getView().showData(convertToRates(response.getRates()), mEditRatePublisher);
-                }));
+                            Log.d(TAG, "response: " + response.toString());
+                            updateReferenceRatesList(response.getRates(), mBaseRate);
+                            getView().showData(convertToRates(mReferenceRates), mEditRatePublisher, mBaseValueChanges, mOnRateValuesChange);
+                            moveBaseCurrencyOnFirstPosition();
+                            postponeRatesUpdates();
+                        },
+                        throwable -> {
+                            Log.e(TAG, "request: ", throwable);
+                        }));
 
         mSubscriptions.add(mEditRatePublisher
                 .compose(applyUISchedulers())
                 .subscribe(rate -> {
-
+                    mBaseRate.setValue(getRateValueInBaseCurrency(rate));
+                    mBaseValueChanges.onNext(mBaseRate.getValue());
                 }));
     }
 
-    private List<Rate> convertToRates(@NonNull HashMap<String, String> ratesMap) {
+    private void postponeRatesUpdates() {
+        if (mUpdateRatesSubscription != null) {
+            mUpdateRatesSubscription.unsubscribe();
+        }
+        mUpdateRatesSubscription = mService.getCurrencyRates(mBaseRate.getName())
+                .repeatWhen(completed -> completed.delay(1, TimeUnit.SECONDS))
+                .compose(applySchedulers())
+                .subscribe(response -> {
+                            Log.d(TAG, "update response: " + response.toString());
+                            updateReferenceRatesList(response.getRates(), mBaseRate);
+                            mOnRateValuesChange.onNext(null);
+                        },
+                        throwable -> {
+                            Log.e(TAG, "update request: ", throwable);
+                        });
+
+        mSubscriptions.add(mUpdateRatesSubscription);
+    }
+
+    private List<Rate> convertToRates(@NonNull HashMap<String, Float> ratesMap) {
         List<Rate> rates = new ArrayList<>();
 
         for (String rateName : ratesMap.keySet()) {
-            float rateValue = Float.parseFloat(ratesMap.get(rateName));
+            float rateValue = ratesMap.get(rateName);
             rates.add(new Rate(rateName, rateValue));
-            saveReferenceRate(rateName, rateValue);
         }
 
         return rates;
     }
 
-    private void saveReferenceRate(String rateName, float rateValue) {
-        mReferenceRates.put(rateName, rateValue);
+    private void updateReferenceRatesList(@NonNull HashMap<String, String> ratesMap, Rate baseRate) {
+        mReferenceRates.put(baseRate.getName(), baseRate.getValue());
+        for (String rateName : ratesMap.keySet()) {
+            float rateValue = Float.parseFloat(ratesMap.get(rateName));
+            mReferenceRates.put(rateName, rateValue);
+        }
     }
 
     private float getRateValueInBaseCurrency(@NonNull Rate rate) {
-        float baseValue;
-        float referenceValue = mReferenceRates.get(rate.getName());
-
-        baseValue = rate.getRate() / referenceValue;
-
-        return baseValue;
-    }
-
-    private float getRateValueFromBaseCurrency(@NonNull Rate rate, float baseValue) {
-
-        return 0.0f;
+        if (mBaseRate.getName().equals(rate.getName())) {
+            return rate.getValue();
+        } else {
+            float referenceValue = mReferenceRates.get(rate.getName());
+            return rate.getValue() / referenceValue;
+        }
     }
 
     public MvpViewMain getView() {
@@ -112,4 +148,19 @@ public class PresenterMain implements Presenter<MvpViewMain> {
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
+    @Override
+    public float getValueForRate(String rateName) {
+        return Utils.getRateValueFromBase(mReferenceRates.get(rateName), mBaseRate.getValue());
+    }
+
+    @Override
+    public void onNewBaseCurrency(String rateName, float currentRateValue) {
+        mBaseRate = new Rate(rateName, currentRateValue);
+        moveBaseCurrencyOnFirstPosition();
+        postponeRatesUpdates();
+    }
+
+    private void moveBaseCurrencyOnFirstPosition() {
+        getView().moveBaseCurrencyToTop(mBaseRate.getName());
+    }
 }

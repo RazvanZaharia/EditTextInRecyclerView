@@ -2,10 +2,12 @@ package com.example.razvan.edittextinrecyclerview.adapter;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -18,28 +20,40 @@ import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import rx.android.schedulers.AndroidSchedulers;
 import rx.subjects.PublishSubject;
+import rx.subscriptions.CompositeSubscription;
 
 public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateViewHolder> {
 
     private Context mContext;
     private List<Rate> mDataSet;
     private PublishSubject<Rate> mEditRatePublisher;
+    private PublishSubject<Void> mRatesValuesChange;
+    private PublishSubject<Float> mBaseValueChangesPublisher;
+    private OnRateListener mOnRateListener;
+    private OnBaseCurrencyChangesListener mOnBaseCurrencyChangesListener;
 
-    public RvAdapterRates(Context context) {
+    public RvAdapterRates(Context context,
+                          @NonNull OnRateListener onRateListener,
+                          @NonNull OnBaseCurrencyChangesListener onBaseCurrencyChangesListener) {
         mContext = context;
+        mOnRateListener = onRateListener;
+        mOnBaseCurrencyChangesListener = onBaseCurrencyChangesListener;
         mDataSet = new ArrayList<>();
     }
 
     @NonNull
     @Override
     public RateViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new RateViewHolder(LayoutInflater.from(mContext).inflate(R.layout.item_currency_rate, parent, false));
+        return new RateViewHolder(LayoutInflater.from(mContext).inflate(R.layout.item_currency_rate, parent, false),
+                mOnRateListener,
+                mOnBaseCurrencyChangesListener);
     }
 
     @Override
     public void onBindViewHolder(@NonNull RateViewHolder holder, int position) {
-        holder.bind(mDataSet.get(position));
+        holder.bind(mDataSet.get(position), mEditRatePublisher, mBaseValueChangesPublisher, mRatesValuesChange);
     }
 
     @Override
@@ -52,11 +66,23 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
         mDataSet.addAll(dataSet);
     }
 
+    public List<Rate> getDataSet() {
+        return mDataSet;
+    }
+
     public void setEditRatePublisher(PublishSubject<Rate> editRatePublisher) {
         mEditRatePublisher = editRatePublisher;
     }
 
-    public class RateViewHolder extends RecyclerView.ViewHolder {
+    public void setBaseValuePublisher(PublishSubject<Float> baseValueChangesPublisher) {
+        mBaseValueChangesPublisher = baseValueChangesPublisher;
+    }
+
+    public void setRatesValuesChange(PublishSubject<Void> ratesValuesChange) {
+        mRatesValuesChange = ratesValuesChange;
+    }
+
+    class RateViewHolder extends RecyclerView.ViewHolder {
 
         @BindView(R.id.iv_icon)
         ImageView mIvIcon;
@@ -67,15 +93,74 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
         @BindView(R.id.et_rate_amount)
         EditText mEtRateAmount;
 
-        public RateViewHolder(View itemView) {
+        @BindView(R.id.card_item)
+        CardView mCardItem;
+
+        private Rate mDisplayedRate;
+        private CompositeSubscription mSubscription;
+        private OnRateListener mOnRateListener;
+        private OnBaseCurrencyChangesListener mOnBaseCurrencyChangesListener;
+
+        RateViewHolder(View itemView,
+                       @NonNull OnRateListener onRateListener,
+                       @NonNull OnBaseCurrencyChangesListener onBaseCurrencyChangesListener) {
             super(itemView);
             ButterKnife.bind(this, itemView);
+            mOnRateListener = onRateListener;
+            mOnBaseCurrencyChangesListener = onBaseCurrencyChangesListener;
         }
 
-        public void bind(Rate rate) {
-            mTvRateName.setText(rate.getName());
-            mEtRateAmount.setText(String.valueOf(rate.getRate()));
-        }
+        void bind(final Rate rate,
+                  PublishSubject<Rate> editRatePublisher,
+                  PublishSubject<Float> baseValueChangesPublisher,
+                  PublishSubject<Void> ratesValuesChanges) {
 
+            if (mSubscription == null) {
+                mSubscription = new CompositeSubscription();
+            } else {
+                mSubscription.clear();
+            }
+
+            mDisplayedRate = rate;
+
+            mTvRateName.setText(mDisplayedRate.getName());
+            mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
+
+            mEtRateAmount.setImeOptions(EditorInfo.IME_ACTION_DONE);
+            mEtRateAmount.setOnEditorActionListener((v, actionId, event) -> {
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(mEtRateAmount.getText().toString())));
+                    return true;
+                }
+                return false;
+            });
+            mEtRateAmount.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    mOnBaseCurrencyChangesListener.onNewBaseCurrency(mDisplayedRate.getName(), mOnRateListener.getValueForRate(mDisplayedRate.getName()));
+                    mCardItem.setCardElevation(8.0f);
+                } else {
+                    mCardItem.setCardElevation(0.0f);
+                }
+            });
+
+            mSubscription.add(baseValueChangesPublisher
+                    .subscribeOn(AndroidSchedulers.mainThread())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(baseValue -> mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())))));
+
+            mSubscription.add(ratesValuesChanges
+                    .subscribeOn(AndroidSchedulers.mainThread())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(baseValue -> mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())))));
+        }
     }
+
+    public interface OnRateListener {
+        float getValueForRate(String rateName);
+    }
+
+    public interface OnBaseCurrencyChangesListener {
+        void onNewBaseCurrency(String rateName, float currentRateValue);
+    }
+
 }
