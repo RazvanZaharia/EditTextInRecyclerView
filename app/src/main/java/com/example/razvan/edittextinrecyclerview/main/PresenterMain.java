@@ -4,11 +4,11 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.example.razvan.edittextinrecyclerview.base.Presenter;
-import com.example.razvan.edittextinrecyclerview.model.DataModel;
 import com.example.razvan.edittextinrecyclerview.model.Rate;
 import com.example.razvan.edittextinrecyclerview.retrofit.ExampleService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -16,6 +16,7 @@ import javax.inject.Inject;
 import rx.Observable;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.schedulers.Schedulers;
+import rx.subjects.PublishSubject;
 import rx.subscriptions.CompositeSubscription;
 
 public class PresenterMain implements Presenter<MvpViewMain> {
@@ -23,8 +24,10 @@ public class PresenterMain implements Presenter<MvpViewMain> {
 
     private ExampleService mService;
     private CompositeSubscription mSubscriptions;
+    private HashMap<String, Float> mReferenceRates = new HashMap<>();
 
     private MvpViewMain viewMain;
+    private PublishSubject<Rate> mEditRatePublisher = PublishSubject.create();
 
     @Inject
     public PresenterMain(ExampleService service) {
@@ -50,19 +53,44 @@ public class PresenterMain implements Presenter<MvpViewMain> {
                 .compose(applySchedulers())
                 .subscribe(response -> {
                     Log.d(TAG, "response: " + response.toString());
-                    getView().showData(convertToRates(response));
+                    getView().showData(convertToRates(response.getRates()), mEditRatePublisher);
+                }));
+
+        mSubscriptions.add(mEditRatePublisher
+                .compose(applyUISchedulers())
+                .subscribe(rate -> {
+
                 }));
     }
 
-    private List<Rate> convertToRates(@NonNull DataModel dataModel) {
+    private List<Rate> convertToRates(@NonNull HashMap<String, String> ratesMap) {
         List<Rate> rates = new ArrayList<>();
 
-        for (String rateName : dataModel.getRates().keySet()) {
-            float rate = Float.parseFloat(dataModel.getRates().get(rateName));
-            rates.add(new Rate(rateName, rate));
+        for (String rateName : ratesMap.keySet()) {
+            float rateValue = Float.parseFloat(ratesMap.get(rateName));
+            rates.add(new Rate(rateName, rateValue));
+            saveReferenceRate(rateName, rateValue);
         }
 
         return rates;
+    }
+
+    private void saveReferenceRate(String rateName, float rateValue) {
+        mReferenceRates.put(rateName, rateValue);
+    }
+
+    private float getRateValueInBaseCurrency(@NonNull Rate rate) {
+        float baseValue;
+        float referenceValue = mReferenceRates.get(rate.getName());
+
+        baseValue = rate.getRate() / referenceValue;
+
+        return baseValue;
+    }
+
+    private float getRateValueFromBaseCurrency(@NonNull Rate rate, float baseValue) {
+
+        return 0.0f;
     }
 
     public MvpViewMain getView() {

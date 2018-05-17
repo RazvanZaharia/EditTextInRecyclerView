@@ -39,6 +39,7 @@
                 android:layout_margin="8dp"
                 android:textColor="@android:color/black"
                 android:textSize="18sp"
+                android:inputType="numberDecimal"
                 tools:text="1234"/>
 
         </LinearLayout>

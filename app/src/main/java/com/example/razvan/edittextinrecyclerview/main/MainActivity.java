@@ -25,6 +25,7 @@ import javax.inject.Inject;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import rx.subjects.PublishSubject;
 
 public class MainActivity extends AppCompatActivity implements MvpViewMain {
 
@@ -50,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
+        setupRecyclerView();
         init();
     }
 
@@ -83,7 +85,13 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
 
     // MvpView
     @Override
-    public void showData(@NonNull List<Rate> rates) {
+    public void showData(@NonNull List<Rate> rates, @NonNull PublishSubject<Rate> editRatePublisher) {
+        mRvAdapterRates.setDataSet(rates);
+        mRvAdapterRates.notifyDataSetChanged();
+    }
+
+    @Override
+    public void updateListWithNewRatesValues(@NonNull List<Rate> rates) {
         mRvAdapterRates.setDataSet(rates);
         mRvAdapterRates.notifyDataSetChanged();
     }
