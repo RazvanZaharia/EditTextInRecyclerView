@@ -6,6 +6,7 @@ import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -86,6 +87,7 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
     }
 
     class RateViewHolder extends RecyclerView.ViewHolder {
+        private static final String TAG = "RateViewHolder";
 
         @BindView(R.id.iv_icon)
         ImageView mIvIcon;
@@ -197,7 +199,14 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
                     rateValueString = "0".concat(rateValueString);
                 }
 
-                editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(rateValueString)));
+                Float rateValueFloat = 0.0f;
+                try {
+                    rateValueFloat = Float.parseFloat(rateValueString);
+                } catch (NumberFormatException nfe) {
+                    Log.e(TAG, "publishNewRateValue: ", nfe);
+                }
+
+                editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), rateValueFloat));
             }
         }
 
