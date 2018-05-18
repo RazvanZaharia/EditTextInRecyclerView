@@ -7,7 +7,6 @@ import com.example.razvan.edittextinrecyclerview.adapter.RvAdapterRates;
 import com.example.razvan.edittextinrecyclerview.base.Presenter;
 import com.example.razvan.edittextinrecyclerview.model.Rate;
 import com.example.razvan.edittextinrecyclerview.retrofit.ExampleService;
-import com.example.razvan.edittextinrecyclerview.util.Utils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,6 +60,13 @@ public class PresenterMain implements Presenter<MvpViewMain>,
     public void init() {
         mBaseRate = new Rate("EUR", 1.0f);
 
+        mSubscriptions.add(mEditRatePublisher
+                .compose(applyUISchedulers())
+                .subscribe(rate -> {
+                    mBaseRate.setValue(getBaseValueFromRate(rate));
+                    mBaseValueChanges.onNext(mBaseRate.getValue());
+                }));
+
         mSubscriptions.add(mService.getCurrencyRates(mBaseRate.getName())
                 .compose(applySchedulers())
                 .subscribe(response -> {
@@ -73,13 +79,6 @@ public class PresenterMain implements Presenter<MvpViewMain>,
                         throwable -> {
                             Log.e(TAG, "request: ", throwable);
                         }));
-
-        mSubscriptions.add(mEditRatePublisher
-                .compose(applyUISchedulers())
-                .subscribe(rate -> {
-                    mBaseRate.setValue(getRateValueInBaseCurrency(rate));
-                    mBaseValueChanges.onNext(mBaseRate.getValue());
-                }));
     }
 
     private void postponeRatesUpdates() {
@@ -120,12 +119,21 @@ public class PresenterMain implements Presenter<MvpViewMain>,
         }
     }
 
-    private float getRateValueInBaseCurrency(@NonNull Rate rate) {
+    private float getBaseValueFromRate(@NonNull Rate rate) {
         if (mBaseRate.getName().equals(rate.getName())) {
             return rate.getValue();
         } else {
             float referenceValue = mReferenceRates.get(rate.getName());
             return rate.getValue() / referenceValue;
+        }
+    }
+
+    private float getRateValueFromBase(@NonNull String rateName) {
+        if (mBaseRate.getName().equals(rateName)) {
+            return mBaseRate.getValue();
+        } else {
+            float referenceValue = mReferenceRates.get(rateName);
+            return mBaseRate.getValue() * referenceValue;
         }
     }
 
@@ -150,14 +158,17 @@ public class PresenterMain implements Presenter<MvpViewMain>,
 
     @Override
     public float getValueForRate(String rateName) {
-        return Utils.getRateValueFromBase(mReferenceRates.get(rateName), mBaseRate.getValue());
+        float rateValue = getRateValueFromBase(rateName);
+        Log.d(TAG, "getValueForRate: " + rateName + " rateValue: " + rateValue + " \nBaseRate: " + mBaseRate.getName() + " BaseValue: " + mBaseRate.getValue());
+        return rateValue;
     }
 
     @Override
     public void onNewBaseCurrency(String rateName, float currentRateValue) {
+        Log.d(TAG, "onNewBaseCurrency: " + rateName + " Value: " + currentRateValue);
         mBaseRate = new Rate(rateName, currentRateValue);
-        moveBaseCurrencyOnFirstPosition();
         postponeRatesUpdates();
+        moveBaseCurrencyOnFirstPosition();
     }
 
     private void moveBaseCurrencyOnFirstPosition() {

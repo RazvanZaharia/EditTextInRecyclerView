@@ -4,6 +4,8 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -108,6 +110,7 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
             ButterKnife.bind(this, itemView);
             mOnRateListener = onRateListener;
             mOnBaseCurrencyChangesListener = onBaseCurrencyChangesListener;
+
         }
 
         void bind(final Rate rate,
@@ -115,13 +118,32 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
                   PublishSubject<Float> baseValueChangesPublisher,
                   PublishSubject<Void> ratesValuesChanges) {
 
+            mDisplayedRate = rate;
+
             if (mSubscription == null) {
                 mSubscription = new CompositeSubscription();
             } else {
                 mSubscription.clear();
             }
 
-            mDisplayedRate = rate;
+            TextWatcher mFocusedEditTextChangesListener = new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+                }
+
+                @Override
+                public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+                }
+
+                @Override
+                public void afterTextChanged(Editable editable) {
+                    if (editable == null || editable.length() == 0) {
+                        editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), 0));
+                    } else {
+                        editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(editable.toString())));
+                    }
+                }
+            };
 
             mTvRateName.setText(mDisplayedRate.getName());
             mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
@@ -138,7 +160,10 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
                 if (hasFocus) {
                     mOnBaseCurrencyChangesListener.onNewBaseCurrency(mDisplayedRate.getName(), mOnRateListener.getValueForRate(mDisplayedRate.getName()));
                     mCardItem.setCardElevation(8.0f);
+                    mEtRateAmount.addTextChangedListener(mFocusedEditTextChangesListener);
+
                 } else {
+                    mEtRateAmount.removeTextChangedListener(mFocusedEditTextChangesListener);
                     mCardItem.setCardElevation(0.0f);
                 }
             });
@@ -146,12 +171,20 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
             mSubscription.add(baseValueChangesPublisher
                     .subscribeOn(AndroidSchedulers.mainThread())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(baseValue -> mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())))));
+                    .subscribe(baseValue -> {
+                        if (!mEtRateAmount.hasFocus()) {
+                            mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
+                        }
+                    }));
 
             mSubscription.add(ratesValuesChanges
                     .subscribeOn(AndroidSchedulers.mainThread())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(baseValue -> mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())))));
+                    .subscribe(baseValue -> {
+                        if (!mEtRateAmount.hasFocus()) {
+                            mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
+                        }
+                    }));
         }
     }
 
