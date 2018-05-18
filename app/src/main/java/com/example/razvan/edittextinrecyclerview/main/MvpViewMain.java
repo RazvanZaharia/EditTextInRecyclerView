@@ -15,7 +15,5 @@ public interface MvpViewMain extends MvpView {
                   @NonNull PublishSubject<Float> baseValueChangesPublisher,
                   @NonNull PublishSubject<Void> ratesValuesChange);
 
-    void notifyRatesValuesChanged();
-
     void moveBaseCurrencyToTop(@NonNull String baseCurrencyName);
 }

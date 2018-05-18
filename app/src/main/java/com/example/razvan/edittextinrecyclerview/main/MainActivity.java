@@ -43,7 +43,6 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
     @BindView(R.id.rv_rates)
     RecyclerView mRvRates;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -93,11 +92,6 @@ public class MainActivity extends AppCompatActivity implements MvpViewMain {
         mRvAdapterRates.setBaseValuePublisher(baseValueChangesPublisher);
         mRvAdapterRates.setRatesValuesChange(ratesValuesChange);
         mRvAdapterRates.setDataSet(rates);
-        mRvAdapterRates.notifyDataSetChanged();
-    }
-
-    @Override
-    public void notifyRatesValuesChanged() {
         mRvAdapterRates.notifyDataSetChanged();
     }
 

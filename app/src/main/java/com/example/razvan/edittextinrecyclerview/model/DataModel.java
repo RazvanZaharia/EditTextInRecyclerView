@@ -3,7 +3,7 @@ package com.example.razvan.edittextinrecyclerview.model;
 import java.io.Serializable;
 import java.util.HashMap;
 
-public class DataModel implements Serializable{
+public class DataModel implements Serializable {
     private static final long serialVersionUID = 650305306196008161L;
 
     private String base;

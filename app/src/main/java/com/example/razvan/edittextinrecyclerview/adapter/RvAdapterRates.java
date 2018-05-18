@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -110,7 +111,6 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
             ButterKnife.bind(this, itemView);
             mOnRateListener = onRateListener;
             mOnBaseCurrencyChangesListener = onBaseCurrencyChangesListener;
-
         }
 
         void bind(final Rate rate,
@@ -137,31 +137,33 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
 
                 @Override
                 public void afterTextChanged(Editable editable) {
-                    if (editable == null || editable.length() == 0) {
-                        editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), 0));
-                    } else {
-                        editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(editable.toString())));
-                    }
+                    publishNewRateValue(editRatePublisher, editable != null ? editable.toString() : null);
                 }
             };
 
+            itemView.setOnClickListener(view -> {
+                mEtRateAmount.requestFocus();
+            });
             mTvRateName.setText(mDisplayedRate.getName());
             mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
 
             mEtRateAmount.setImeOptions(EditorInfo.IME_ACTION_DONE);
-            mEtRateAmount.setOnEditorActionListener((v, actionId, event) -> {
+            mEtRateAmount.setOnEditorActionListener((view, actionId, event) -> {
                 if (actionId == EditorInfo.IME_ACTION_DONE) {
-                    editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(mEtRateAmount.getText().toString())));
+                    hideSoftKeyboard(mEtRateAmount);
+                    publishNewRateValue(editRatePublisher, mEtRateAmount.getText() != null ? mEtRateAmount.getText().toString() : null);
+                    mEtRateAmount.clearFocus();
                     return true;
                 }
                 return false;
             });
-            mEtRateAmount.setOnFocusChangeListener((v, hasFocus) -> {
+            mEtRateAmount.setOnFocusChangeListener((view, hasFocus) -> {
                 if (hasFocus) {
+                    showSoftKeyboard(mEtRateAmount);
                     mOnBaseCurrencyChangesListener.onNewBaseCurrency(mDisplayedRate.getName(), mOnRateListener.getValueForRate(mDisplayedRate.getName()));
                     mCardItem.setCardElevation(8.0f);
+                    mEtRateAmount.setSelection(mEtRateAmount.getText() != null ? mEtRateAmount.getText().length() : 0);
                     mEtRateAmount.addTextChangedListener(mFocusedEditTextChangesListener);
-
                 } else {
                     mEtRateAmount.removeTextChangedListener(mFocusedEditTextChangesListener);
                     mCardItem.setCardElevation(0.0f);
@@ -185,6 +187,28 @@ public class RvAdapterRates extends RecyclerView.Adapter<RvAdapterRates.RateView
                             mEtRateAmount.setText(String.valueOf(mOnRateListener.getValueForRate(mDisplayedRate.getName())));
                         }
                     }));
+        }
+
+        private void publishNewRateValue(PublishSubject<Rate> editRatePublisher, String rateValueString) {
+            if (rateValueString == null || rateValueString.length() == 0) {
+                editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), 0));
+            } else {
+                if (rateValueString.startsWith(".")) {
+                    rateValueString = "0".concat(rateValueString);
+                }
+
+                editRatePublisher.onNext(new Rate(mDisplayedRate.getName(), Float.parseFloat(rateValueString)));
+            }
+        }
+
+        private void hideSoftKeyboard(View view) {
+            InputMethodManager imm = (InputMethodManager) itemView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
+
+        private void showSoftKeyboard(View view) {
+            InputMethodManager imm = (InputMethodManager) itemView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.showSoftInput(view, 0);
         }
     }
 

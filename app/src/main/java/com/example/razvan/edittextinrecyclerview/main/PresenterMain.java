@@ -174,4 +174,12 @@ public class PresenterMain implements Presenter<MvpViewMain>,
     private void moveBaseCurrencyOnFirstPosition() {
         getView().moveBaseCurrencyToTop(mBaseRate.getName());
     }
+
+    public PublishSubject<Rate> getEditRatePublisher() {
+        return mEditRatePublisher;
+    }
+
+    public PublishSubject<Float> getBaseValueChanges() {
+        return mBaseValueChanges;
+    }
 }

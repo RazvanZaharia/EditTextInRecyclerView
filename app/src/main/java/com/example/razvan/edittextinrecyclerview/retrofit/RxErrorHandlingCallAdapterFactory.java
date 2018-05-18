@@ -14,6 +14,7 @@ import rx.Observable;
 import rx.functions.Func1;
 
 public class RxErrorHandlingCallAdapterFactory extends CallAdapter.Factory {
+
     private final RxJavaCallAdapterFactory original;
 
     private RxErrorHandlingCallAdapterFactory() {
